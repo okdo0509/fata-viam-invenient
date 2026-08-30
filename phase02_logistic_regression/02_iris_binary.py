@@ -2,23 +2,27 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
-def sigmoid(num):
-    return 1/(1+np.exp(-num))
-def diff_sigmoid(num):
-    s = sigmoid(num)
-    return s*(1-s)
-def loss_function(y, y_pred):
-    y_pred = np.clip(y_pred, 1e-15, 1 - 1e-15)  # Avoid log(0)
-    return np.mean(-y*np.log(y_pred) - (1-y)*np.log(1-y_pred))
-def diff_loss_w(y_i, x_i, y_pred):
-    return (y_pred - y_i) * x_i
-def diff_loss_b(y_i, y_pred):
-    return (y_pred - y_i)
+def softmax(matrix):
+    max_values = np.max(matrix, axis=1, keepdims=True)
+    matrix = matrix - max_values  # For numerical stability
+    matrix = np.exp(matrix)
+    sum_exp = np.sum(matrix, axis=1, keepdims=True)
+    return matrix / sum_exp
+def loss_function(y_pred_matrix, y_true):
+    y_pred = np.clip(y_pred_matrix, 1e-15, 1 - 1e-15)  # Avoid log(0)
+    return np.mean(-np.sum(y_true * np.log(y_pred), axis=1))
+def diff_loss_w(y, x, y_pred,N):
+    return np.dot(x.T, y_pred - y) / N
+def diff_loss_b(y, y_pred):
+    return np.mean(y_pred - y, axis=0)
 
 iris_data = pd.read_csv("C:\\Users\\옥유준\\Downloads\\archive\\Iris.csv")
 
-X = iris_data[['SepalLengthCm', 'SepalWidthCm']].iloc[:100].to_numpy()
-y = iris_data['Species'].iloc[:100].apply(lambda x: 1 if x == 'Iris-versicolor' else 0).to_numpy()
+X = iris_data[['SepalLengthCm', 'SepalWidthCm', 'PetalLengthCm', 'PetalWidthCm']].to_numpy()
+y = iris_data['Species']
+y = y.map({'Iris-setosa': 0, 'Iris-versicolor': 1, 'Iris-virginica': 2}).to_numpy()
+y = pd.get_dummies(y).to_numpy()
+
 
 np.random.seed(42)
 indices = np.random.permutation(len(X))
@@ -30,24 +34,23 @@ test_indices = indices[split_index:]
 X_train, X_test = X[train_indices], X[test_indices]
 y_train, y_test = y[train_indices], y[test_indices]
 
-weights = np.array([100.0, 100.0])
-bias = 100.0
+weights = np.array([[0.0, 0.0, 0.0],[0.0, 0.0, 0.0],[0.0, 0.0, 0.0],[0.0, 0.0, 0.0]])  # Shape (4, 3)
+bias = np.array([0.0,0.0,0.0])
 
 for epoch in range(100):
-    n = 2
-    m = []
-    for i in range(len(X_train)):
-        m.append(np.dot(weights, X_train[i]) + bias)
-    y_pred = np.array([sigmoid(m[i]) for i in range(len(m))])
-    gradient_W = np.mean(np.array([diff_loss_w(y_train[i], X_train[i], y_pred[i]) for i in range(len(X_train))]), axis=0)
-    gradient_b = np.mean(np.array([diff_loss_b(y_train[i], y_pred[i]) for i in range(len(X_train))]), axis=0)
-    print(f"Epoch {epoch+1}/ loss {loss_function(y_train, y_pred)}")
+    n = 0.05
+    z = np.dot(X_train, weights) + bias
+    y_pred = softmax(z)
+    gradient_W = diff_loss_w(y_train, X_train, y_pred, len(X_train))
+    gradient_b = diff_loss_b(y_train, y_pred)
     weights -= n * gradient_W
     bias -= n * gradient_b
+    print(f"Epoch {epoch+1}/ loss {loss_function(y_pred, y_train)}")
 
 # Evaluate on test data
-test_m = [np.dot(weights, X_test[i]) + bias for i in range(len(X_test))]
-test_y_pred = [sigmoid(test_m[i]) for i in range(len(test_m))]
-test_loss = loss_function(y_test, np.array(test_y_pred))
-test_accuracy = np.where(np.array(test_y_pred) >= 0.5, 1, 0)
-print(f"test accuracy: {np.mean(test_accuracy == y_test)}")
+test_z = np.dot(X_test, weights) + bias
+test_y_pred = softmax(test_z)
+test_loss = loss_function(test_y_pred, y_test)
+test_accuracy = np.argmax(test_y_pred, axis=1)
+print(f"test accuracy: {np.mean(test_accuracy == np.argmax(y_test, axis=1))}")
+print(f"test loss: {test_loss}")
