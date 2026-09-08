@@ -31,6 +31,7 @@ split_index = int(len(X) * 0.8)
 train_indices = indices[:split_index]
 test_indices = indices[split_index:]
 
+
 X_train, X_test = X[train_indices], X[test_indices]
 y_train, y_test = y[train_indices], y[test_indices]
 
@@ -38,7 +39,7 @@ weights = np.array([[0.0, 0.0, 0.0],[0.0, 0.0, 0.0],[0.0, 0.0, 0.0],[0.0, 0.0, 0
 bias = np.array([0.0,0.0,0.0])
 
 for epoch in range(100):
-    n = 0.05
+    n = 0.1
     z = np.dot(X_train, weights) + bias
     y_pred = softmax(z)
     gradient_W = diff_loss_w(y_train, X_train, y_pred, len(X_train))

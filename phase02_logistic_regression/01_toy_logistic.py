@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 
 def sigmoid(num):
     return 1/(1+np.exp(-num))
