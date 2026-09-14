@@ -14,7 +14,7 @@ def loss_function(y_pred_matrix, y_true):
     return np.mean(-np.sum(y_true * np.log(y_pred), axis=1)) #shape(N,)
 
 def active_function(x):
-    return np.where(x > -100, x, 0.01 * (np.exp(x) - np.exp(-100)-100)) # Leaky ReLU
+    return np.where(x > 0, x, 0.01 * (np.exp(x) - 1)) # Leaky ReLU
 
 def diff_Z_2(y, x, y_pred,N):
     return np.dot(x.T, y_pred - y) / N
@@ -23,7 +23,7 @@ def diff_A_1(weights_2, dZ_2):
     return np.dot(dZ_2, weights_2.T)
 
 def diff_Z_1(dA_1, Z_1):
-    dZ_1 = dA_1 * np.where(Z_1 > -100, 1, 0.01 * np.exp(Z_1))
+    dZ_1 = dA_1 * np.where(Z_1 > 0, 1, 0.01 * np.exp(Z_1))
     return dZ_1
 
 #데이터 셋 받기
@@ -63,7 +63,7 @@ for epoch in range(100):
     dW_2 = np.dot(A_1.T, dZ_2) / len(X_train)
     db_2 = np.mean(dZ_2, axis=0, keepdims=True) #shape (1, 4)
     dA_1 = np.dot(dZ_2, weights_2.T) #shape(N,10)
-    dZ_1 = dA_1 * np.where(Z_1 > -100, 1, 0.01 * np.exp(Z_1)) #shape(N,10)
+    dZ_1 = dA_1 * np.where(Z_1 > 0, 1, 0.01 * np.exp(Z_1)) #shape(N,10)
     dW_1 = np.dot(X_train.T, dZ_1) / len(X_train)
     db_1 = np.mean(dZ_1, axis=0, keepdims=True) #shape (1, 10)
     weights_1 -= n * dW_1
@@ -71,7 +71,7 @@ for epoch in range(100):
     weights_2 -= n * dW_2
     bias_2 -= n * db_2
 
-    print(f"Epoch {epoch+1}/ loss {Loss}, count : {int(np.nonzero(Z_1 > -100)[0].shape[0]/len(X_train))}%")
+#    print(f"Epoch {epoch+1}/ loss {Loss}")
 
 test_Z_1 = np.dot(X_test, weights_1) + bias_1
 test_A_1 = active_function(test_Z_1)
@@ -79,4 +79,25 @@ test_Z_2 = np.dot(test_A_1, weights_2) + bias_2
 test_Y_pred = softmax(test_Z_2)
 test_loss = loss_function(test_Y_pred, Y_test)
 test_accuracy = np.argmax(test_Y_pred, axis=1)
-print(f"test accuracy: {np.mean(test_accuracy == np.argmax(Y_test, axis=1))}")
+
+Z_1 = np.dot(X_train, weights_1) + bias_1 #shape(N,10)
+A_1 = active_function(Z_1) #shape(N,10)
+Z_2 = np.dot(A_1, weights_2) + bias_2 #shape(N,4)
+Y_pred = softmax(Z_2) #shape(N,4)
+
+print(f"test accuracy: {np.mean(test_accuracy == np.argmax(Y_test, axis=1))}, train accuracy: {np.mean(np.argmax(Y_pred, axis=1) == np.argmax(Y_train, axis=1))}")
+
+wrong_prediction = [0, 0, 0, 0]
+Actual_class_count = [0, 0, 0, 0] 
+for i in range(len(X_test)): # Initialize a list to count wrong predictions for each class
+    if np.argmax(test_Y_pred[i]) != np.argmax(Y_test[i]):
+        wrong_prediction[np.argmax(test_Y_pred[i])] += 1
+        Actual_class_count[np.argmax(Y_test[i])] += 1
+        print(f"Predicted: {np.argmax(test_Y_pred[i])}, Actual: {np.argmax(Y_test[i])}")
+
+print("Wrong predictions by class:")
+for cls, count in enumerate(wrong_prediction):
+    print(f"Class {cls}: {count}")
+
+for cls, count in enumerate(Actual_class_count):
+    print(f"Actual Class {cls}: {count}")
