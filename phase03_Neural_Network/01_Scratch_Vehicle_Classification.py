@@ -52,6 +52,8 @@ weights_2 = np.random.randn(10, 4) * 0.01  # Shape (10, 4)
 bias_1 = np.zeros((1, 10))  # Shape (1, 10)
 bias_2 = np.zeros((1, 4))  # Shape (1, 4)
 
+lating_search = []
+pre_Loss = 0
 for epoch in range(100):
     n = 1.5
     Z_1 = np.dot(X_train, weights_1) + bias_1 #shape(N,10)
@@ -70,6 +72,8 @@ for epoch in range(100):
     bias_1 -= n * db_1
     weights_2 -= n * dW_2
     bias_2 -= n * db_2
+    lating_search.append((Loss, Loss - pre_Loss, dW_1.copy(), dW_2.copy()))
+    pre_Loss = Loss
 
 #    print(f"Epoch {epoch+1}/ loss {Loss}")
 
@@ -87,17 +91,20 @@ Y_pred = softmax(Z_2) #shape(N,4)
 
 print(f"test accuracy: {np.mean(test_accuracy == np.argmax(Y_test, axis=1))}, train accuracy: {np.mean(np.argmax(Y_pred, axis=1) == np.argmax(Y_train, axis=1))}")
 
-wrong_prediction = [0, 0, 0, 0]
-Actual_class_count = [0, 0, 0, 0] 
-for i in range(len(X_test)): # Initialize a list to count wrong predictions for each class
-    if np.argmax(test_Y_pred[i]) != np.argmax(Y_test[i]):
-        wrong_prediction[np.argmax(test_Y_pred[i])] += 1
-        Actual_class_count[np.argmax(Y_test[i])] += 1
-        print(f"Predicted: {np.argmax(test_Y_pred[i])}, Actual: {np.argmax(Y_test[i])}")
+loss_vals       = [t[0] for t in lating_search]
+loss_delta_vals = [t[1] for t in lating_search]
+w1_grad_vals    = [t[2] for t in lating_search]
+w2_grad_vals    = [t[3] for t in lating_search]
 
-print("Wrong predictions by class:")
-for cls, count in enumerate(wrong_prediction):
-    print(f"Class {cls}: {count}")
+fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+axes[0, 0].plot(loss_vals)
+axes[0, 0].set_title('Loss over Epochs')
+axes[0, 1].plot(loss_delta_vals)
+axes[0, 1].set_title('Loss Delta over Epochs')
+axes[1, 0].plot([np.linalg.norm(g) for g in w1_grad_vals])
+axes[1, 0].set_title('Weight 1 Gradient Norm over Epochs')
+axes[1, 1].plot([np.linalg.norm(g) for g in w2_grad_vals])
+axes[1, 1].set_title('Weight 2 Gradient Norm over Epochs')
 
-for cls, count in enumerate(Actual_class_count):
-    print(f"Actual Class {cls}: {count}")
+plt.tight_layout()
+plt.show()
