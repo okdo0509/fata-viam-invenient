@@ -52,10 +52,17 @@ weights_2 = np.random.randn(10, 4) * 0.01  # Shape (10, 4)
 bias_1 = np.zeros((1, 10))  # Shape (1, 10)
 bias_2 = np.zeros((1, 4))  # Shape (1, 4)
 
-lating_search = []
-pre_Loss = 0
+n_1 = 0.001  # Learning rate for the first layer
+n_2 = 0.001  # Learning rate for the second layer
+pre_Loss = float('inf')  # Initialize previous loss to infinity
+pre_weights_1 = weights_1.copy()
+pre_gradient_W_1 = np.zeros_like(weights_1)
+pre_weights_2 = weights_2.copy()
+pre_gradient_W_2 = np.zeros_like(weights_2)
+Tau = 0.8
+
+
 for epoch in range(100):
-    n = 1.5
     Z_1 = np.dot(X_train, weights_1) + bias_1 #shape(N,10)
     A_1 = active_function(Z_1) #shape(N,10)
     Z_2 = np.dot(A_1, weights_2) + bias_2 #shape(N,4)
@@ -68,14 +75,63 @@ for epoch in range(100):
     dZ_1 = dA_1 * np.where(Z_1 > 0, 1, 0.01 * np.exp(Z_1)) #shape(N,10)
     dW_1 = np.dot(X_train.T, dZ_1) / len(X_train)
     db_1 = np.mean(dZ_1, axis=0, keepdims=True) #shape (1, 10)
-    weights_1 -= n * dW_1
-    bias_1 -= n * db_1
-    weights_2 -= n * dW_2
-    bias_2 -= n * db_2
-    lating_search.append((Loss, Loss - pre_Loss, dW_1.copy(), dW_2.copy()))
-    pre_Loss = Loss
 
-#    print(f"Epoch {epoch+1}/ loss {Loss}")
+    if epoch > 0:
+        delta_W_1 = weights_1 - pre_weights_1
+        delta_W_2 = weights_2 - pre_weights_2
+        delta_gradient_W_1 = dW_1 - pre_gradient_W_1
+        delta_gradient_W_2 = dW_2 - pre_gradient_W_2
+        r_L = (-Loss + pre_Loss) / pre_Loss
+        r_U_1 = np.linalg.norm(dW_1) / np.linalg.norm(weights_1) * n_1
+        r_U_2 = np.linalg.norm(dW_2) / np.linalg.norm(weights_2) * n_2
+        k_1 = np.dot(delta_W_1.T.flatten(), delta_gradient_W_1.flatten()) / np.linalg.norm(delta_W_1)**2
+        k_2 = np.dot(delta_W_2.T.flatten(), delta_gradient_W_2.flatten()) / np.linalg.norm(delta_W_2)**2
+        r_seta_1 = np.linalg.norm(delta_W_1) / (np.linalg.norm(weights_1) + 1e-8)
+        r_seta_2 = np.linalg.norm(delta_W_2) / (np.linalg.norm(weights_2) + 1e-8)
+        Efficent_1 = r_L/ (r_seta_1 + 1e-8)
+        Efficent_2 = r_L/ (r_seta_2 + 1e-8)
+
+        if r_L > 0 and Efficent_1 > 0:
+            candidate_n_1 = n_1 * 1.05
+        elif r_L < 0 and Efficent_1 < 0:
+            candidate_n_1 = n_1 * 0.7
+        else:
+            candidate_n_1 = n_1
+        if r_L > 0 and Efficent_2 > 0:
+            candidate_n_2 = n_2 * 1.05
+        elif r_L < 0 and Efficent_2 < 0:
+            candidate_n_2 = n_2 * 0.7
+        else:
+            candidate_n_2 = n_2
+
+        s_1 = 2/k_1
+        s_2 = 2/k_2
+
+        n_update_1 = Tau / (np.linalg.norm(delta_W_1)+1e-8) * (np.linalg.norm(dW_1)+1e-8)
+        n_update_2 = Tau / (np.linalg.norm(delta_W_2)+1e-8) * (np.linalg.norm(dW_2)+1e-8)
+
+        n_1 = min(candidate_n_1, n_update_1,s_1)
+        n_2 = min(candidate_n_2, n_update_2,s_2)
+
+        weights_1 -= n_1 * dW_1
+        bias_1 -= n_1 * db_1
+        weights_2 -= n_2 * dW_2
+        bias_2 -= n_2 * db_2
+
+    else:
+        weights_1 -= n_1 * dW_1
+        bias_1 -= n_1 * db_1
+        weights_2 -= n_2 * dW_2
+        bias_2 -= n_2 * db_2
+
+    pre_Loss = Loss
+    pre_weights_1 = weights_1.copy()
+    pre_gradient_W_1 = dW_1.copy()
+    pre_weights_2 = weights_2.copy()
+    pre_gradient_W_2 = dW_2.copy()
+
+
+    print(f"Epoch {epoch+1}/ loss {Loss}")
 
 test_Z_1 = np.dot(X_test, weights_1) + bias_1
 test_A_1 = active_function(test_Z_1)
@@ -83,28 +139,4 @@ test_Z_2 = np.dot(test_A_1, weights_2) + bias_2
 test_Y_pred = softmax(test_Z_2)
 test_loss = loss_function(test_Y_pred, Y_test)
 test_accuracy = np.argmax(test_Y_pred, axis=1)
-
-Z_1 = np.dot(X_train, weights_1) + bias_1 #shape(N,10)
-A_1 = active_function(Z_1) #shape(N,10)
-Z_2 = np.dot(A_1, weights_2) + bias_2 #shape(N,4)
-Y_pred = softmax(Z_2) #shape(N,4)
-
-print(f"test accuracy: {np.mean(test_accuracy == np.argmax(Y_test, axis=1))}, train accuracy: {np.mean(np.argmax(Y_pred, axis=1) == np.argmax(Y_train, axis=1))}")
-
-loss_vals       = [t[0] for t in lating_search]
-loss_delta_vals = [t[1] for t in lating_search]
-w1_grad_vals    = [t[2] for t in lating_search]
-w2_grad_vals    = [t[3] for t in lating_search]
-
-fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-axes[0, 0].plot(loss_vals)
-axes[0, 0].set_title('Loss over Epochs')
-axes[0, 1].plot(loss_delta_vals)
-axes[0, 1].set_title('Loss Delta over Epochs')
-axes[1, 0].plot([np.linalg.norm(g) for g in w1_grad_vals])
-axes[1, 0].set_title('Weight 1 Gradient Norm over Epochs')
-axes[1, 1].plot([np.linalg.norm(g) for g in w2_grad_vals])
-axes[1, 1].set_title('Weight 2 Gradient Norm over Epochs')
-
-plt.tight_layout()
-plt.show()
+print(f"Test Loss: {test_loss}, Test Accuracy: {np.mean(test_accuracy == np.argmax(Y_test, axis=1))}")
