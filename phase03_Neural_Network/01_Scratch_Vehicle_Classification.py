@@ -52,8 +52,8 @@ weights_2 = np.random.randn(10, 4) * 0.01  # Shape (10, 4)
 bias_1 = np.zeros((1, 10))  # Shape (1, 10)
 bias_2 = np.zeros((1, 4))  # Shape (1, 4)
 
-n_1 = 0.001  # Learning rate for the first layer
-n_2 = 0.001  # Learning rate for the second layer
+n_1 = 1  # Learning rate for the first layer
+n_2 = 1  # Learning rate for the second layer
 pre_Loss = float('inf')  # Initialize previous loss to infinity
 pre_weights_1 = weights_1.copy()
 pre_gradient_W_1 = np.zeros_like(weights_1)
@@ -82,56 +82,68 @@ for epoch in range(100):
         delta_gradient_W_1 = dW_1 - pre_gradient_W_1
         delta_gradient_W_2 = dW_2 - pre_gradient_W_2
         r_L = (-Loss + pre_Loss) / pre_Loss
-        r_U_1 = np.linalg.norm(dW_1) / np.linalg.norm(weights_1) * n_1
-        r_U_2 = np.linalg.norm(dW_2) / np.linalg.norm(weights_2) * n_2
-        k_1 = np.dot(delta_W_1.T.flatten(), delta_gradient_W_1.flatten()) / np.linalg.norm(delta_W_1)**2
-        k_2 = np.dot(delta_W_2.T.flatten(), delta_gradient_W_2.flatten()) / np.linalg.norm(delta_W_2)**2
-        r_seta_1 = np.linalg.norm(delta_W_1) / (np.linalg.norm(weights_1) + 1e-8)
-        r_seta_2 = np.linalg.norm(delta_W_2) / (np.linalg.norm(weights_2) + 1e-8)
+        k_1 = np.dot(delta_W_1.flatten(), delta_gradient_W_1.flatten()) / np.linalg.norm(delta_W_1)**2
+        k_2 = np.dot(delta_W_2.flatten(), delta_gradient_W_2.flatten()) / np.linalg.norm(delta_W_2)**2
+        r_seta_1 = np.linalg.norm(delta_W_1) / (np.linalg.norm(pre_weights_1) + 1e-8)
+        r_seta_2 = np.linalg.norm(delta_W_2) / (np.linalg.norm(pre_weights_2) + 1e-8)
         Efficent_1 = r_L/ (r_seta_1 + 1e-8)
         Efficent_2 = r_L/ (r_seta_2 + 1e-8)
 
-        if r_L > 0 and Efficent_1 > 0:
+        if r_L > 0 and Efficent_1 > 0.005:
             candidate_n_1 = n_1 * 1.05
-        elif r_L < 0 and Efficent_1 < 0:
+        elif r_L < 0 and Efficent_1 < -0.01:
             candidate_n_1 = n_1 * 0.7
         else:
             candidate_n_1 = n_1
-        if r_L > 0 and Efficent_2 > 0:
+        if r_L > 0 and Efficent_2 > 0.005:
             candidate_n_2 = n_2 * 1.05
-        elif r_L < 0 and Efficent_2 < 0:
+        elif r_L < 0 and Efficent_2 < -0.01:
             candidate_n_2 = n_2 * 0.7
         else:
             candidate_n_2 = n_2
 
-        s_1 = 2/k_1
-        s_2 = 2/k_2
+        cur_1 = 2/k_1  if k_1 > 0 else float("inf")
+        cur_2 = 2/k_2  if k_2 > 0 else float("inf")
 
-        n_update_1 = Tau / (np.linalg.norm(delta_W_1)+1e-8) * (np.linalg.norm(dW_1)+1e-8)
-        n_update_2 = Tau / (np.linalg.norm(delta_W_2)+1e-8) * (np.linalg.norm(dW_2)+1e-8)
+        r_U_1 = n_1 * np.linalg.norm(dW_1) / (np.linalg.norm(weights_1)+1e-8)
+        r_U_2 = n_2 * np.linalg.norm(dW_2) / (np.linalg.norm(weights_2)+1e-8)
 
-        n_1 = min(candidate_n_1, n_update_1,s_1)
-        n_2 = min(candidate_n_2, n_update_2,s_2)
+        n_update_1 = Tau * (np.linalg.norm(weights_1)+1e-8) / (np.linalg.norm(dW_1)+1e-8)
+        n_update_2 = Tau * (np.linalg.norm(weights_2)+1e-8) / (np.linalg.norm(dW_2)+1e-8)
 
-        weights_1 -= n_1 * dW_1
-        bias_1 -= n_1 * db_1
-        weights_2 -= n_2 * dW_2
-        bias_2 -= n_2 * db_2
+        s_1 = min(1, n_update_1/candidate_n_1, cur_1/candidate_n_1)
+        s_2 = min(1, n_update_2/candidate_n_2, cur_2/candidate_n_2)
+        n_1 = candidate_n_1
+        n_2 = candidate_n_2
+
+        pre_weights_1 = weights_1.copy()
+        pre_gradient_W_1 = dW_1.copy()
+        pre_weights_2 = weights_2.copy()
+        pre_gradient_W_2 = dW_2.copy()
+        pre_Loss = Loss
+
+        weights_1 -= (n_1*s_1) * dW_1
+        bias_1 -= (n_1*s_1) * db_1
+        weights_2 -= (n_2*s_2) * dW_2
+        bias_2 -= (n_2*s_2) * db_2
+
+        print(f"Epoch {epoch+1}/ loss {Loss}, E_1: {Efficent_1}, E_2: {Efficent_2}")
+        print(f"candidate_n_1: {candidate_n_1}, candidate_n_2: {candidate_n_2}, s_1: {s_1}, s_2: {s_2}")
+        print(f"n_1: {n_1}, n_2: {n_2}, cur_1: {cur_1}, cur_2: {cur_2}, r_L: {r_L}, \n k_1: {k_1}, k_2: {k_2}, r_seta_1: {r_seta_1}, r_seta_2: {r_seta_2}, r_U_1: {r_U_1}, r_U_2: {r_U_2}, n_update_1: {n_update_1}, n_update_2: {n_update_2}")
 
     else:
+        pre_weights_1 = weights_1.copy()
+        pre_gradient_W_1 = dW_1.copy()
+        pre_weights_2 = weights_2.copy()
+        pre_gradient_W_2 = dW_2.copy()
+        pre_Loss = Loss
+
         weights_1 -= n_1 * dW_1
         bias_1 -= n_1 * db_1
         weights_2 -= n_2 * dW_2
         bias_2 -= n_2 * db_2
+        
 
-    pre_Loss = Loss
-    pre_weights_1 = weights_1.copy()
-    pre_gradient_W_1 = dW_1.copy()
-    pre_weights_2 = weights_2.copy()
-    pre_gradient_W_2 = dW_2.copy()
-
-
-    print(f"Epoch {epoch+1}/ loss {Loss}")
 
 test_Z_1 = np.dot(X_test, weights_1) + bias_1
 test_A_1 = active_function(test_Z_1)
