@@ -59,7 +59,12 @@ pre_weights_1 = weights_1.copy()
 pre_gradient_W_1 = np.zeros_like(weights_1)
 pre_weights_2 = weights_2.copy()
 pre_gradient_W_2 = np.zeros_like(weights_2)
-Tau = 0.8
+Tau = 0.3
+r_U_1_list = []
+r_U_2_list = []
+rL_list = []
+s1_list = []
+s2_list = []
 
 
 for epoch in range(100):
@@ -102,8 +107,8 @@ for epoch in range(100):
         else:
             candidate_n_2 = n_2
 
-        cur_1 = 2/k_1  if k_1 > 0 else float("inf")
-        cur_2 = 2/k_2  if k_2 > 0 else float("inf")
+        cur_1 = 2/k_1 * 0.5  if k_1 > 0 else float("inf")
+        cur_2 = 2/k_2 * 0.5  if k_2 > 0 else float("inf")
 
         r_U_1 = n_1 * np.linalg.norm(dW_1) / (np.linalg.norm(weights_1)+1e-8)
         r_U_2 = n_2 * np.linalg.norm(dW_2) / (np.linalg.norm(weights_2)+1e-8)
@@ -122,14 +127,20 @@ for epoch in range(100):
         pre_gradient_W_2 = dW_2.copy()
         pre_Loss = Loss
 
+        r_U_1_list.append(r_U_1)
+        r_U_2_list.append(r_U_2)
+        rL_list.append(r_L)
+        s1_list.append(s_1)
+        s2_list.append(s_2)
+
         weights_1 -= (n_1*s_1) * dW_1
         bias_1 -= (n_1*s_1) * db_1
         weights_2 -= (n_2*s_2) * dW_2
         bias_2 -= (n_2*s_2) * db_2
 
         print(f"Epoch {epoch+1}/ loss {Loss}, E_1: {Efficent_1}, E_2: {Efficent_2}")
-        print(f"candidate_n_1: {candidate_n_1}, candidate_n_2: {candidate_n_2}, s_1: {s_1}, s_2: {s_2}")
-        print(f"n_1: {n_1}, n_2: {n_2}, cur_1: {cur_1}, cur_2: {cur_2}, r_L: {r_L}, \n k_1: {k_1}, k_2: {k_2}, r_seta_1: {r_seta_1}, r_seta_2: {r_seta_2}, r_U_1: {r_U_1}, r_U_2: {r_U_2}, n_update_1: {n_update_1}, n_update_2: {n_update_2}")
+        #print(f"candidate_n_1: {candidate_n_1}, candidate_n_2: {candidate_n_2}, s_1: {s_1}, s_2: {s_2}")
+        #print(f"n_1: {n_1}, n_2: {n_2}, cur_1: {cur_1}, cur_2: {cur_2}, r_L: {r_L}, \n k_1: {k_1}, k_2: {k_2}, r_seta_1: {r_seta_1}, r_seta_2: {r_seta_2}, r_U_1: {r_U_1}, r_U_2: {r_U_2}, n_update_1: {n_update_1}, n_update_2: {n_update_2}")
 
     else:
         pre_weights_1 = weights_1.copy()
@@ -152,3 +163,19 @@ test_Y_pred = softmax(test_Z_2)
 test_loss = loss_function(test_Y_pred, Y_test)
 test_accuracy = np.argmax(test_Y_pred, axis=1)
 print(f"Test Loss: {test_loss}, Test Accuracy: {np.mean(test_accuracy == np.argmax(Y_test, axis=1))}")
+
+lst = [r_U_1_list, r_U_2_list, rL_list, s1_list, s2_list]
+titles = ['r_U_1', 'r_U_2', 'r_L', 's_1', 's_2']
+
+fig, axs = plt.subplots(5, 2, figsize=(12, 12), sharex=True)
+
+for i in range(5):
+    axs[i, 0].plot(lst[i])
+    axs[i, 0].set_title(titles[i])
+    axs[i, 0].set_ylabel(titles[i])
+    axs[i, 1].hist(lst[i], bins=20)
+    axs[i, 1].set_title(f'Histogram of {titles[i]}')
+    axs[i, 1].set_xlabel(titles[i])
+
+plt.tight_layout()
+plt.show()
