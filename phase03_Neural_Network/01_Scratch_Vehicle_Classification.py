@@ -44,6 +44,7 @@ mean = np.mean(X[train_indices], axis=0)
 std = np.std(X[train_indices], axis=0)
 X = (X - mean) / std  # Standardize the features
 
+
 X_train, X_test = X[train_indices], X[test_indices] #shape(N,18)
 Y_train, Y_test = Y[train_indices], Y[test_indices] #shape(N,4)
 
@@ -59,13 +60,15 @@ pre_weights_1 = weights_1.copy()
 pre_gradient_W_1 = np.zeros_like(weights_1)
 pre_weights_2 = weights_2.copy()
 pre_gradient_W_2 = np.zeros_like(weights_2)
-Tau = 0.3
-r_U_1_list = []
-r_U_2_list = []
-rL_list = []
-s1_list = []
-s2_list = []
-
+pre_Efficent_1 = 0
+pre_Efficent_2 = 0
+pre_seta_1 = 0
+pre_seta_2 = 0
+pre_n_1 = n_1
+pre_n_2 = n_2
+Tau = 0.31
+n_min_1 = 0.7
+n_min_2 = 0.7
 
 for epoch in range(100):
     Z_1 = np.dot(X_train, weights_1) + bias_1 #shape(N,10)
@@ -93,19 +96,37 @@ for epoch in range(100):
         r_seta_2 = np.linalg.norm(delta_W_2) / (np.linalg.norm(pre_weights_2) + 1e-8)
         Efficent_1 = r_L/ (r_seta_1 + 1e-8)
         Efficent_2 = r_L/ (r_seta_2 + 1e-8)
+        delta_r_L = Loss - pre_Loss
+        delta_r_seta_1 = r_seta_1 - pre_seta_1
+        delta_r_seta_2 = r_seta_2 - pre_seta_2
+        delta_n_1 = np.log(n_1) - np.log(pre_n_1)
+        delta_n_2 = np.log(n_2) - np.log(pre_n_2)
+        direction_1 = np.sign(delta_n_1)
+        direction_2 = np.sign(delta_n_2)
 
-        if r_L > 0 and Efficent_1 > 0.005:
-            candidate_n_1 = n_1 * 1.05
+        q_t_1 = 0
+        q_t_2 = 0
+
+        if pre_Efficent_1 is not None and pre_Efficent_2 is not None:
+            delta_E_1 = Efficent_1 - pre_Efficent_1
+            delta_E_2 = Efficent_2 - pre_Efficent_2
+            if (abs(Efficent_1) + abs(pre_Efficent_1)) > 1e-8:
+                q_t_1 = direction_1 * delta_E_1 / ((abs(Efficent_1) + abs(pre_Efficent_1)) + 1e-8)
+            if (abs(Efficent_2) + abs(pre_Efficent_2)) > 1e-8:
+                q_t_2 = direction_2 * delta_E_2 / ((abs(Efficent_2) + abs(pre_Efficent_2)) + 1e-8)
+
+        if r_L > 0 and Efficent_1 > 0.005:   
+            proposal_n_1 = n_1 * np.exp(q_t_1) * 1.05
         elif r_L < 0 and Efficent_1 < -0.01:
-            candidate_n_1 = n_1 * 0.7
+            proposal_n_1 = n_1 * n_min_1
         else:
-            candidate_n_1 = n_1
+            proposal_n_1 = n_1
         if r_L > 0 and Efficent_2 > 0.005:
-            candidate_n_2 = n_2 * 1.05
+            proposal_n_2 = n_2 * np.exp(q_t_2) * 1.05
         elif r_L < 0 and Efficent_2 < -0.01:
-            candidate_n_2 = n_2 * 0.7
+            proposal_n_2 = n_2 * n_min_2
         else:
-            candidate_n_2 = n_2
+            proposal_n_2 = n_2
 
         cur_1 = 2/k_1 * 0.5  if k_1 > 0 else float("inf")
         cur_2 = 2/k_2 * 0.5  if k_2 > 0 else float("inf")
@@ -116,32 +137,45 @@ for epoch in range(100):
         n_update_1 = Tau * (np.linalg.norm(weights_1)+1e-8) / (np.linalg.norm(dW_1)+1e-8)
         n_update_2 = Tau * (np.linalg.norm(weights_2)+1e-8) / (np.linalg.norm(dW_2)+1e-8)
 
-        s_1 = min(1, n_update_1/candidate_n_1, cur_1/candidate_n_1)
-        s_2 = min(1, n_update_2/candidate_n_2, cur_2/candidate_n_2)
-        n_1 = candidate_n_1
-        n_2 = candidate_n_2
+        s_1 = min(1, n_update_1/proposal_n_1, cur_1/proposal_n_1)
+        s_2 = min(1, n_update_2/proposal_n_2, cur_2/proposal_n_2)
+        
+        pre_n_1 = n_1
+        pre_n_2 = n_2
+        actual_n_1 = min(proposal_n_1, n_update_1, cur_1)
+        actual_n_2 = min(proposal_n_2, n_update_2, cur_2)
 
+        cosine_1 = np.dot(dW_1.flatten().T,pre_gradient_W_1.flatten())/(np.linalg.norm(dW_1)*np.linalg.norm(pre_gradient_W_1))
+        cosine_2 = np.dot(dW_2.flatten().T,pre_gradient_W_2.flatten())/(np.linalg.norm(dW_2)*np.linalg.norm(pre_gradient_W_2))
+        
         pre_weights_1 = weights_1.copy()
         pre_gradient_W_1 = dW_1.copy()
         pre_weights_2 = weights_2.copy()
         pre_gradient_W_2 = dW_2.copy()
-        pre_Loss = Loss
+        pre_Loss = Loss.copy()
+        pre_seta_1 = r_seta_1.copy()
+        pre_seta_2 = r_seta_2.copy()
+        pre_Efficent_1 = Efficent_1.copy()
+        pre_Efficent_2 = Efficent_2.copy()
 
-        r_U_1_list.append(r_U_1)
-        r_U_2_list.append(r_U_2)
-        rL_list.append(r_L)
-        s1_list.append(s_1)
-        s2_list.append(s_2)
+        weights_1 -= (actual_n_1) * dW_1
+        bias_1 -= (actual_n_1) * db_1
+        weights_2 -= (actual_n_2) * dW_2
+        bias_2 -= (actual_n_2) * db_2
 
-        weights_1 -= (n_1*s_1) * dW_1
-        bias_1 -= (n_1*s_1) * db_1
-        weights_2 -= (n_2*s_2) * dW_2
-        bias_2 -= (n_2*s_2) * db_2
+        if s_1 < 1:
+            n_1 = n_1
+        else:
+            n_1 = proposal_n_1
+        if s_2 < 1:
+            n_2 = n_2
+        else:
+            n_2 = proposal_n_2
 
-        print(f"Epoch {epoch+1}/ loss {Loss}, E_1: {Efficent_1}, E_2: {Efficent_2}")
-        #print(f"candidate_n_1: {candidate_n_1}, candidate_n_2: {candidate_n_2}, s_1: {s_1}, s_2: {s_2}")
-        #print(f"n_1: {n_1}, n_2: {n_2}, cur_1: {cur_1}, cur_2: {cur_2}, r_L: {r_L}, \n k_1: {k_1}, k_2: {k_2}, r_seta_1: {r_seta_1}, r_seta_2: {r_seta_2}, r_U_1: {r_U_1}, r_U_2: {r_U_2}, n_update_1: {n_update_1}, n_update_2: {n_update_2}")
+        pre_n_1 = n_1
+        pre_n_2 = n_2
 
+        print(f"Epoch {epoch+1}/100 loss {Loss}")
     else:
         pre_weights_1 = weights_1.copy()
         pre_gradient_W_1 = dW_1.copy()
@@ -153,6 +187,8 @@ for epoch in range(100):
         bias_1 -= n_1 * db_1
         weights_2 -= n_2 * dW_2
         bias_2 -= n_2 * db_2
+
+
         
 
 
@@ -164,18 +200,3 @@ test_loss = loss_function(test_Y_pred, Y_test)
 test_accuracy = np.argmax(test_Y_pred, axis=1)
 print(f"Test Loss: {test_loss}, Test Accuracy: {np.mean(test_accuracy == np.argmax(Y_test, axis=1))}")
 
-lst = [r_U_1_list, r_U_2_list, rL_list, s1_list, s2_list]
-titles = ['r_U_1', 'r_U_2', 'r_L', 's_1', 's_2']
-
-fig, axs = plt.subplots(5, 2, figsize=(12, 12), sharex=True)
-
-for i in range(5):
-    axs[i, 0].plot(lst[i])
-    axs[i, 0].set_title(titles[i])
-    axs[i, 0].set_ylabel(titles[i])
-    axs[i, 1].hist(lst[i], bins=20)
-    axs[i, 1].set_title(f'Histogram of {titles[i]}')
-    axs[i, 1].set_xlabel(titles[i])
-
-plt.tight_layout()
-plt.show()
